@@ -1,0 +1,145 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+
+class Program
+{
+    // Oyun Ayarları
+    static int width = 40;
+    static int height = 20;
+    static int playerX = 20;
+    static int playerY = 18;
+    static int score = 0;
+    static int targetScore = 10;
+    static bool isRunning = true;
+    static string logFile = "game_logs.txt";
+
+    // Düşen objeler listesi (x, y)
+    static List<int[]> items = new List<int[]>();
+    static Random rng = new Random();
+
+    static void Main(string[] args)
+    {
+        Console.CursorVisible = false;
+        File.WriteAllText(logFile, "--- OYUN BASLADI ---\n"); // Log dosyasını temizle/başlat
+
+        while (isRunning)
+        {
+            Input();
+            Update();
+            Draw();
+            Thread.Sleep(100); // Oyun hızı (10 FPS)
+
+            if (score >= targetScore)
+            {
+                EndGame("Hedef skora ulasildi!");
+            }
+        }
+    }
+
+    static void Log(string tag, string message)
+    {
+        string logEntry = $"{tag} → {message}";
+        File.AppendAllLines(logFile, new[] { logEntry });
+    }
+
+    static void Input()
+    {
+        if (Console.KeyAvailable)
+        {
+            var key = Console.ReadKey(true).Key;
+            int oldX = playerX;
+            int oldY = playerY;
+
+            if (key == ConsoleKey.LeftArrow && playerX > 0) playerX--;
+            if (key == ConsoleKey.RightArrow && playerX < width - 1) playerX++;
+
+            Log("INPUT", $"key={key} playerX={playerX} playerY={playerY}");
+
+            if (oldX != playerX || oldY != playerY)
+            {
+                Log("MOVEMENT", $"playerMoved from={oldX},{oldY} to={playerX},{playerY}");
+            }
+        }
+    }
+
+    static void Update()
+    {
+        // Yeni obje oluşturma (Rastgele)
+        if (rng.Next(0, 10) < 2)
+        {
+            int newX = rng.Next(0, width);
+            items.Add(new int[] { newX, 0 });
+            Log("UPDATE", $"itemSpawned x={newX} y=0");
+        }
+
+        // Objeleri hareket ettir
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            items[i][1]++; // Y ekseninde aşağı düşür
+            Log("OBJECT_MOVE", $"itemID={i} newX={items[i][0]} newY={items[i][1]}");
+
+            // Çarpışma Kontrolü
+            if (items[i][0] == playerX && items[i][1] == playerY)
+            {
+                score++;
+                Log("COLLISION", $"score={score} pos={playerX},{playerY}");
+                items.RemoveAt(i);
+                continue;
+            }
+
+            // Ekrandan çıkanları sil
+            if (items[i][1] >= height)
+            {
+                items.RemoveAt(i);
+            }
+        }
+    }
+
+    static void Draw()
+    {
+        Console.SetCursorPosition(0, 0);
+
+        // Üst Bilgi
+        Console.WriteLine($"Skor: {score} / {targetScore} | Karakter: @");
+
+        char[,] buffer = new char[height, width];
+
+        // Buffer temizle
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                buffer[y, x] = ' ';
+
+        // Oyuncuyu yerleştir
+        buffer[playerY, playerX] = '@';
+
+        // Objeleri yerleştir
+        foreach (var item in items)
+        {
+            if (item[1] < height)
+                buffer[item[1], item[0]] = '*';
+        }
+
+        // Ekrana yazdır
+        System.Text.StringBuilder frame = new System.Text.StringBuilder();
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+                frame.Append(buffer[y, x]);
+            frame.Append('\n');
+        }
+        Console.Write(frame.ToString());
+    }
+
+    static void EndGame(string reason)
+    {
+        isRunning = false;
+        Console.Clear();
+        Console.WriteLine("Oyun Bitti!");
+        Console.WriteLine(reason);
+        Log("GAME_OVER", $"finalScore={score} reason={reason}");
+        Console.WriteLine("Loglar game_logs.txt dosyasina kaydedildi.");
+        Console.ReadKey();
+    }
+}
